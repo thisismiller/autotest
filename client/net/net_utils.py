@@ -35,8 +35,7 @@ class network_utils(object):
                 autotest machine.
         @return: IP address which can communicate with query_ip
         """
-        ip = client_utils.system_output("ip addr show to %s/%s" %
-                                        (query_ip, netmask))
+        ip = utils.system_output("ip addr show to %s/%s" % (query_ip, netmask))
         ip = re.search(r"inet ([0-9.]*)/", ip)
         if ip is None:
             return ip
@@ -102,9 +101,11 @@ class network_utils(object):
 
 def network():
     try:
+        # Here we are importing site net utils only if it exists
+        # pylint: disable=E0611
         from autotest.client.net import site_net_utils
         return site_net_utils.network_utils()
-    except Exception:
+    except ImportError:
         return network_utils()
 
 
@@ -113,7 +114,6 @@ class network_interface(object):
     ENABLE, DISABLE = (True, False)
 
     def __init__(self, name):
-        autodir = os.environ['AUTODIR']
         self.ethtool = 'ethtool'
         self._name = name
         self.was_down = self.is_down()
@@ -385,9 +385,11 @@ class network_interface(object):
 
 def netif(name):
     try:
+        # Here we are importing site net utils only if it exists
+        # pylint: disable=E0611
         from autotest.client.net import site_net_utils
         return site_net_utils.network_interface(name)
-    except Exception:
+    except ImportError:
         return network_interface(name)
 
 
@@ -450,9 +452,11 @@ class bonding(object):
 
 def bond():
     try:
+        # Here we are importing site net utils only if it exists
+        # pylint: disable=E0611
         from autotest.client.net import site_net_utils
         return site_net_utils.bonding()
-    except Exception:
+    except ImportError:
         return bonding()
 
 
@@ -744,7 +748,9 @@ class ethernet(object):
 
 def ethernet_packet():
     try:
+        # Here we are importing site net utils only if it exists
+        # pylint: disable=E0611
         from autotest.client.net import site_net_utils
         return site_net_utils.ethernet()
-    except Exception:
+    except ImportError:
         return ethernet()

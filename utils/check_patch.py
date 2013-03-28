@@ -362,9 +362,9 @@ class FileChecker(object):
 
         self.corrective_actions = []
 
-        self.indent_exceptions = ['cli/job_unittest.py']
-        self.check_exceptions = ['client/tests/virt/kvm/tests/stepmaker.py',
-                                 'utils/run_pylint.py']
+        self.indent_exceptions = ['cli/job_unittest.py', 'Makefile']
+        self.check_exceptions = ['client/tests/virt/qemu/tests/stepmaker.py',
+                                 'utils/run_pylint.py', 'Makefile']
 
         if self.is_python:
             logging.debug("Checking file %s",
@@ -534,6 +534,7 @@ class PatchChecker(object):
                  pwhost=None, vcs=None,
                  confirm=False):
         self.confirm = confirm
+        self.files_failed_check = []
         self.base_dir = os.getcwd()
         if pwhost is None:
             self.pwhost = PWHOST
@@ -609,7 +610,6 @@ class PatchChecker(object):
 
     def _check_files_modified_patch(self):
         modified_files_after = []
-        files_failed_check = []
         if self.vcs.type == "subversion":
             untracked_files_after = self.vcs.get_unknown_files()
             modified_files_after = self.vcs.get_modified_files()
@@ -646,11 +646,11 @@ class PatchChecker(object):
                 file_checker = FileChecker(path=modified_file, vcs=self.vcs,
                                            confirm=self.confirm)
                 if not file_checker.report():
-                    files_failed_check.append(modified_file)
-        if files_failed_check:
-            return (False, files_failed_check)
+                    self.files_failed_check.append(modified_file)
+        if self.files_failed_check:
+            return False
         else:
-            return (True, [])
+            return True
 
 
     def check(self):
@@ -694,9 +694,20 @@ if __name__ == "__main__":
     ignore_list = ['common.py', ".svn", ".git", '.pyc', ".orig", ".rej", ".bak"]
 
     if full_check:
+        failed_paths = []
         run_pylint.set_verbosity(False)
         logging.info("Autotest full tree check")
         logging.info("")
+        if os.path.isfile("tko/Makefile"):
+            proto_cmd = "make -C tko"
+            try:
+                utils.system(proto_cmd)
+            except error.CmdError:
+                doc = "https://github.com/autotest/autotest/wiki/UnittestSuite"
+                logging.error("Command %s failed. Please check if you have "
+                              "the google protocol buffer compiler, refer to "
+                              "%s for more info", proto_cmd, doc)
+                sys.exit(1)
         for root, dirs, files in os.walk("."):
             for fl in files:
                 check = True
@@ -711,7 +722,17 @@ if __name__ == "__main__":
                 if check:
                     file_checker = FileChecker(path=path, vcs=vcs,
                                                confirm=confirm)
-                    file_checker.report(skip_unittest=True)
+                    if not file_checker.report(skip_unittest=True):
+                        failed_paths.append(path)
+        if failed_paths:
+            logging.error("Full tree check found files with problems:")
+            for fp in failed_paths:
+                logging.error(fp)
+            logging.error("Please verify the problems and address them")
+            sys.exit(1)
+        else:
+            logging.info("All passed!")
+            sys.exit(0)
 
     else:
         if local_patch:
@@ -734,4 +755,11 @@ if __name__ == "__main__":
             logging.error('No patch or patchwork id specified. Aborting.')
             sys.exit(1)
 
-        (success, files_failed_check) = patch_checker.check()
+        if patch_checker.check():
+            sys.exit(0)
+        else:
+            logging.error("Patch checking found files with problems:")
+            for fp in patch_checker.files_failed_check:
+                logging.error(fp)
+            logging.error("Please verify the problems and address them")
+            sys.exit(1)
